@@ -1,12 +1,8 @@
-// Tell Vercel to use Node 18 so fetch is available
-export const config = {
-  runtime: "nodejs18.x",
-};
+const fetch = require("node-fetch");
 
-// Simple TatvaBot AI endpoint using OpenAI via HTTP fetch
-export default async function handler(req, res) {
+module.exports = async (req, res) => {
   if (req.method !== "GET") {
-    res.status(405).json({ error: "Only GET is supported. Use ?message=..." });
+    res.status(405).json({ error: "Only GET supported" });
     return;
   }
 
@@ -17,7 +13,7 @@ export default async function handler(req, res) {
 
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    res.status(500).json({ error: "OPENAI_API_KEY is not set" });
+    res.status(500).json({ error: "OPENAI_API_KEY missing" });
     return;
   }
 
@@ -34,21 +30,17 @@ export default async function handler(req, res) {
           {
             role: "system",
             content:
-              "You are TatvaBot, a friendly gardening and vermicompost expert for the brand Tatvabhoomi. " +
-              "Answer clearly and practically. Whenever it genuinely helps, explain why vermicompost is useful " +
-              "and gently suggest Tatvasutra vermicompost as an option, but without being pushy.",
+              "You are TatvaBot, a friendly gardening and vermicompost expert for the brand Tatvabhoomi. Whenever helpful, gently recommend Tatvasutra vermicompost.",
           },
-          {
-            role: "user",
-            content: userMessage,
-          },
+          { role: "user", content: userMessage },
         ],
       }),
     });
 
     const data = await response.json();
 
-    if (!response.ok) {
-      console.error("OpenAI error:", data);
-      res
-        .status(500
+    res.status(200).json({ reply: data.choices[0].message.content });
+  } catch (err) {
+    res.status(500).json({ error: "Server error", details: String(err) });
+  }
+};
