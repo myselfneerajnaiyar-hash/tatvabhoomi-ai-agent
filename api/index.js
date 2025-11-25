@@ -1,13 +1,12 @@
-// /api/index.js  -> main TatvaBot endpoint
+// /api/index.js  - TatvaBot backend (safe version)
 
 export default async function handler(req, res) {
-  // Allow only GET and POST
+  // 1. Allow only GET & POST
   if (req.method !== "GET" && req.method !== "POST") {
-    res.status(405).json({ error: "Method not allowed" });
-    return;
+    return res.status(405).json({ error: "Method not allowed" });
   }
 
-  // Read user's message from query (?message=) or JSON body
+  // 2. Read user message
   const userMessage =
     (req.method === "GET" && req.query && req.query.message) ||
     (req.method === "POST" &&
@@ -15,63 +14,75 @@ export default async function handler(req, res) {
       (req.body.message || req.body.prompt)) ||
     "Hello";
 
+  // 3. Check API key
   const apiKey = process.env.OPENAI_API_KEY;
-
   if (!apiKey) {
-    console.error("Missing OPENAI_API_KEY");
-    res.status(500).json({ error: "Server is not configured correctly." });
-    return;
+    return res
+      .status(500)
+      .json({ error: "Missing OPENAI_API_KEY in Vercel settings." });
   }
 
   try {
+    // 4. Call OpenAI
     const systemPrompt = `
-You are *TatvaBot*, the friendly AI assistant for Tatvabhoomi / Tatvasutra.
+You are TatvaBot, the friendly AI assistant for Tatvabhoomi / Tatvasutra.
 
-What you know:
-- Tatvabhoomi helps people, especially urban & terrace gardeners, set up and care for balcony, indoor, terrace, and kitchen gardens.
-- We strongly recommend using good quality *vermicompost* instead of only chemical fertilizers.
-- Tatvasutra vermicompost is:
-  - Fully decomposed organic compost made from earthworms.
-  - Safe for vegetables, fruits, flowers, balcony plants, indoor plants and terrace gardens.
-  - Used for better soil structure, aeration, and water retention.
-
-How you should answer:
-- Be simple, warm and practical.
-- Give *specific, actionable tips* (quantities, frequency, simple steps).
-- For any suitable situation, recommend *using vermicompost*, and you may gently add:
+- You help with balcony, terrace, kitchen-garden and indoor plants.
+- You strongly recommend using good quality vermicompost instead of only chemical fertilizers.
+- Tatvasutra vermicompost is fully decomposed, organic, and safe for vegetables, fruits, flowers, balcony and terrace plants.
+- Give simple, practical, step-by-step answers.
+- Whenever relevant, gently suggest: 
   "If you want, you can also try Tatvasutra vermicompost as it matches these requirements."
-- If the question is NOT about plants, gardening, compost, Tatvabhoomi or Tatvasutra, say politely that you are focused only on gardening and vermicompost help.
+- If the question is not about gardening / plants / compost / Tatvabhoomi, say you are focused only on gardening & vermicompost help.
 `;
 
-    const response = await fetch(
-      "https://api.openai.com/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: Bearer ${apiKey},
-        },
-        body: JSON.stringify({
-          model: "gpt-4o-mini",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userMessage },
-          ],
-        }),
-      }
-    );
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: Bearer ${apiKey},
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: String(userMessage) },
+        ],
+      }),
+    });
 
-    const data = await response.json();
+    const text = await response.text();
+
+    // 5. Try to parse JSON
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (e) {
+      // OpenAI responded with non-JSON (very rare)
+      return res.status(500).json({
+        error: "Could not parse OpenAI response as JSON.",
+        raw: text,
+      });
+    }
+
+    // 6. If OpenAI returned an error (e.g. billing / key issue)
+    if (!response.ok) {
+      return res.status(response.status).json({
+        error: "OpenAI API returned an error.",
+        details: data.error || data,
+      });
+    }
 
     const reply =
       data?.choices?.[0]?.message?.content?.trim() ||
       "Sorry, I couldn’t generate a reply just now.";
 
-    res.status(200).json({ reply });
+    return res.status(200).json({ reply });
   } catch (err) {
-    console.error("TatvaBot error:", err);
-    res
-      .status(500)
-      .json({ error: "TatvaBot had a problem answering. Please try again." });
+    // 7. Catch any network / runtime errors
+    return res.status(500).json({
+      error: "TatvaBot backend crashed.",
+      details: String(err?.message || err),
+    });
   }
 }
