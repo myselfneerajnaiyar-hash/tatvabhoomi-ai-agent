@@ -1,62 +1,45 @@
-// /api/chat.js
+import OpenAI from "openai";
+
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 export default async function handler(req, res) {
-  try {
-    const apiKey = process.env.OPENAI_API_KEY;
+  if (req.method !== "GET" && req.method !== "POST") {
+    res.setHeader("Allow", ["GET", "POST"]);
+    return res.status(405).json({ error: "Method not allowed" });
+  }
 
-    if (!apiKey) {
-      return res.status(500).json({
-        error: "OPENAI_API_KEY is not set in environment variables.",
-      });
+  try {
+    const userMessage =
+      req.method === "GET" ? req.query.message : req.body.message;
+
+    if (!userMessage || userMessage.length === 0) {
+      return res.status(400).json({ error: "Missing message parameter" });
     }
 
-    // Get user's message (from query string or POST body)
-    const userMessage =
-      (req.method === "POST" ? req.body?.message : req.query.message) ||
-      "Hello";
-
-    // Call OpenAI Responses API
-    const openaiRes = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: Bearer ${apiKey},
-      },
-      body: JSON.stringify({
-        model: "gpt-5.1-mini",
-        input: [
-          {
-            role: "system",
-            content:
-              "You are Tatvabhoomi's friendly gardening assistant. " +
-              "Help users with balcony gardens, terrace gardens, indoor plants, " +
-              "and vegetable gardens. Explain things simply. " +
-              "Whenever it fits naturally, you may softly suggest Tatvabhoomi vermicompost, " +
-              "but never push too hard.",
-          },
-          {
-            role: "user",
-            content: userMessage,
-          },
-        ],
-      }),
+    const completion = await client.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are Tatvabhoomi's AI assistant. Help users with vermicompost, balcony/terrace gardening, plant care, and Tatvasutra products in a friendly, simple way.",
+        },
+        {
+          role: "user",
+          content: String(userMessage),
+        },
+      ],
     });
 
-    if (!openaiRes.ok) {
-      const text = await openaiRes.text();
-      console.error("OpenAI error:", text);
-      return res.status(500).json({ error: "OpenAI request failed." });
-    }
+    const answer =
+      completion.choices[0]?.message?.content ||
+      "Sorry, I couldn't generate a response.";
 
-    const data = await openaiRes.json();
-
-    // Responses API: take first text output
-    const reply =
-      data?.output?.[0]?.content?.[0]?.text || "Sorry, I couldn’t answer that.";
-
-    return res.status(200).json({ reply });
-  } catch (err) {
-    console.error("Server error:", err);
-    return res.status(500).json({ error: "Internal server error." });
+    return res.status(200).json({ reply: answer });
+  } catch (error) {
+    console.error("Tatvabhoomi AI error:", error);
+    return res.status(500).json({ error: "Internal server error" });
   }
 }
