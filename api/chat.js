@@ -1,5 +1,3 @@
-// Simple echo handler to verify the function works
-
 module.exports = async (req, res) => {
   const userMessage =
     (req.query && req.query.message) ||
