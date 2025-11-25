@@ -1,7 +1,12 @@
-export default async function handler(req, res) {
-  const userMessage = req.query.message || "no message received";
+// Simple echo handler to verify the function works
+
+module.exports = async (req, res) => {
+  const userMessage =
+    (req.query && req.query.message) ||
+    (req.body && req.body.message) ||
+    "no message received";
 
   res.status(200).json({
     reply: Echo from TatvaBot: ${userMessage},
   });
-}
+};
