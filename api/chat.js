@@ -1,3 +1,4 @@
+import fetch from "node-fetch";
 // Simple TatvaBot API using plain fetch (no extra libraries needed)
 
 export default async function handler(req, res) {
