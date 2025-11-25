@@ -1,4 +1,4 @@
-module.exports = async (req, res) => {
+export default function handler(req, res) {
   const userMessage =
     (req.query && req.query.message) ||
     (req.body && req.body.message) ||
@@ -7,4 +7,4 @@ module.exports = async (req, res) => {
   res.status(200).json({
     reply: Echo from TatvaBot: ${userMessage},
   });
-};
+}
