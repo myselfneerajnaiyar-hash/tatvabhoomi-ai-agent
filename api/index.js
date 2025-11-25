@@ -1,41 +1,23 @@
-// /api/index.js  - TatvaBot backend (safe version)
+// Simple TatvaBot AI endpoint using OpenAI via HTTP fetch
 
 export default async function handler(req, res) {
-  // 1. Allow only GET & POST
-  if (req.method !== "GET" && req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
+  if (req.method !== "GET") {
+    res.status(405).json({ error: "Only GET is supported. Use ?message=..." });
+    return;
   }
 
-  // 2. Read user message
   const userMessage =
-    (req.method === "GET" && req.query && req.query.message) ||
-    (req.method === "POST" &&
-      req.body &&
-      (req.body.message || req.body.prompt)) ||
-    "Hello";
+    (req.query && req.query.message) ||
+    (req.body && req.body.message) ||
+    "no message received";
 
-  // 3. Check API key
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    return res
-      .status(500)
-      .json({ error: "Missing OPENAI_API_KEY in Vercel settings." });
+    res.status(500).json({ error: "OPENAI_API_KEY is not set" });
+    return;
   }
 
   try {
-    // 4. Call OpenAI
-    const systemPrompt = `
-You are TatvaBot, the friendly AI assistant for Tatvabhoomi / Tatvasutra.
-
-- You help with balcony, terrace, kitchen-garden and indoor plants.
-- You strongly recommend using good quality vermicompost instead of only chemical fertilizers.
-- Tatvasutra vermicompost is fully decomposed, organic, and safe for vegetables, fruits, flowers, balcony and terrace plants.
-- Give simple, practical, step-by-step answers.
-- Whenever relevant, gently suggest: 
-  "If you want, you can also try Tatvasutra vermicompost as it matches these requirements."
-- If the question is not about gardening / plants / compost / Tatvabhoomi, say you are focused only on gardening & vermicompost help.
-`;
-
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -45,44 +27,41 @@ You are TatvaBot, the friendly AI assistant for Tatvabhoomi / Tatvasutra.
       body: JSON.stringify({
         model: "gpt-4o-mini",
         messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: String(userMessage) },
+          {
+            role: "system",
+            content:
+              "You are TatvaBot, a friendly gardening and vermicompost expert for the brand Tatvabhoomi. " +
+              "Answer clearly and practically. Whenever it genuinely helps, explain why vermicompost is useful " +
+              "and gently suggest Tatvasutra vermicompost as an option, but without being pushy.",
+          },
+          {
+            role: "user",
+            content: userMessage,
+          },
         ],
       }),
     });
 
-    const text = await response.text();
+    const data = await response.json();
 
-    // 5. Try to parse JSON
-    let data;
-    try {
-      data = JSON.parse(text);
-    } catch (e) {
-      // OpenAI responded with non-JSON (very rare)
-      return res.status(500).json({
-        error: "Could not parse OpenAI response as JSON.",
-        raw: text,
-      });
-    }
-
-    // 6. If OpenAI returned an error (e.g. billing / key issue)
     if (!response.ok) {
-      return res.status(response.status).json({
-        error: "OpenAI API returned an error.",
-        details: data.error || data,
-      });
+      console.error("OpenAI error:", data);
+      res
+        .status(500)
+        .json({ error: "OpenAI API error", details: data.error || data });
+      return;
     }
 
     const reply =
-      data?.choices?.[0]?.message?.content?.trim() ||
-      "Sorry, I couldn’t generate a reply just now.";
+      (data.choices &&
+        data.choices[0] &&
+        data.choices[0].message &&
+        data.choices[0].message.content) ||
+      "Sorry, I couldn't generate a reply.";
 
-    return res.status(200).json({ reply });
+    res.status(200).json({ reply });
   } catch (err) {
-    // 7. Catch any network / runtime errors
-    return res.status(500).json({
-      error: "TatvaBot backend crashed.",
-      details: String(err?.message || err),
-    });
+    console.error("TatvaBot server error:", err);
+    res.status(500).json({ error: "Server error", details: String(err) });
   }
 }
