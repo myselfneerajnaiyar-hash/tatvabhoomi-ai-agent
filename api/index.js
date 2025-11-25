@@ -1,5 +1,9 @@
-// Simple TatvaBot AI endpoint using OpenAI via HTTP fetch
+// Tell Vercel to use Node 18 so fetch is available
+export const config = {
+  runtime: "nodejs18.x",
+};
 
+// Simple TatvaBot AI endpoint using OpenAI via HTTP fetch
 export default async function handler(req, res) {
   if (req.method !== "GET") {
     res.status(405).json({ error: "Only GET is supported. Use ?message=..." });
@@ -47,21 +51,4 @@ export default async function handler(req, res) {
     if (!response.ok) {
       console.error("OpenAI error:", data);
       res
-        .status(500)
-        .json({ error: "OpenAI API error", details: data.error || data });
-      return;
-    }
-
-    const reply =
-      (data.choices &&
-        data.choices[0] &&
-        data.choices[0].message &&
-        data.choices[0].message.content) ||
-      "Sorry, I couldn't generate a reply.";
-
-    res.status(200).json({ reply });
-  } catch (err) {
-    console.error("TatvaBot server error:", err);
-    res.status(500).json({ error: "Server error", details: String(err) });
-  }
-}
+        .status(500
